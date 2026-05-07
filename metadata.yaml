@@ -2,5 +2,5 @@ homepage: "https://cookies.becompliance.com"
 documentation: "https://cookies.becompliance.com/installation.html"
 versions:
   # Latest version
-  - sha: f3d7f1b092c579f392d3a690bc13fa0c588e33cb
+  - sha: 5b30806fc435216a144ec80dc800712882a60c93
     changeNotes: Initial release;
