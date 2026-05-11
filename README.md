@@ -65,7 +65,7 @@ After publishing, use GTM's **Preview** mode. The Be.Aliant template will output
 
 If you need help setting up Basic or Advanced Consent Mode, or generating your Client ID, please refer to our official resources:
 
-* **Setup Guide & Documentation:** [Be.Aliant Google Consent Mode Documentation]([https://testegoogle.becompliance.com/lgpd/cookies/public-info/google-consent-mode](https://cookies.becompliance.com/))
+* **Setup Guide & Documentation:** [Be.Aliant Google Consent Mode Documentation](https://cookies.becompliance.com/)
 * **Official Website:** [becompliance.com](https://becompliance.com)
 
 
