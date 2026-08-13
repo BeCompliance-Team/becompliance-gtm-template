@@ -198,7 +198,6 @@ const injectScript = require('injectScript');
 const queryPermission = require('queryPermission');
 const logToConsole = require('logToConsole');
 const gtagSet = require('gtagSet');
-const setInWindow = require('setInWindow');
 
 const clientId = data.clientId;
 
@@ -258,17 +257,6 @@ if (data.enableConsentMode !== false) {
       'wait_for_update': 500
     });
   }
-
-  // O bundle do banner emite o próprio `consent default` quando ninguém o
-  // publicou antes dele. Aqui o GTM já publicou — e bem mais cedo, na Consent
-  // Initialization. Sem esta marca o bundle repete o comando quando termina de
-  // carregar, depois de as tags já terem disparado, criando duas fontes de
-  // verdade para o mesmo estado. O flag é o mesmo que o bootstrap `inject.js`
-  // usa na instalação manual.
-  //
-  // Só marcamos quando o Consent Mode está ligado: com o checkbox desmarcado
-  // nenhum default sai daqui, e o bundle precisa continuar emitindo o dele.
-  setInWindow('__beCmpBootstrap', true, true);
 }
 
 // O painel entrega o ID já no formato {empresa}/{banner}, que é o caminho do
@@ -355,67 +343,6 @@ ___WEB_PERMISSIONS___
               {
                 "type": 1,
                 "string": "ads_data_redaction"
-              }
-            ]
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
-  {
-    "instance": {
-      "key": {
-        "publicId": "access_globals",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "keys",
-          "value": {
-            "type": 2,
-            "listItem": [
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "__beCmpBootstrap"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
               }
             ]
           }
@@ -673,155 +600,55 @@ ___TESTS___
 
 scenarios:
 - name: Tabela vazia publica o bloqueio global
-  code: |-
-    const mockData = {
-      clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',
-      enableConsentMode: true,
-      defaultSettings: []
-    };
-
-    let estado = null;
-    mock('setDefaultConsentState', (obj) => { estado = obj; });
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { onSuccess(); });
-
-    runCode(mockData);
-
-    assertThat(estado.ad_storage).isEqualTo('denied');
-    assertThat(estado.analytics_storage).isEqualTo('denied');
-    assertThat(estado.ad_user_data).isEqualTo('denied');
-    assertThat(estado.ad_personalization).isEqualTo('denied');
-    assertThat(estado.security_storage).isEqualTo('granted');
+  code: "const mockData = {\n  clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',\n  enableConsentMode:\
+    \ true,\n  defaultSettings: []\n};\n\nlet estado = null;\nmock('setDefaultConsentState', (obj) =>\
+    \ { estado = obj; });\nmock('queryPermission', () => true);\nmock('injectScript', (url, onSuccess)\
+    \ => { onSuccess(); });\n\nrunCode(mockData);\n\nassertThat(estado.ad_storage).isEqualTo('denied');\n\
+    assertThat(estado.analytics_storage).isEqualTo('denied');\nassertThat(estado.ad_user_data).isEqualTo('denied');\n\
+    assertThat(estado.ad_personalization).isEqualTo('denied');\nassertThat(estado.security_storage).isEqualTo('granted');"
 - name: url_passthrough e ads_data_redaction saem como comandos set
-  code: |-
-    // Dentro do objeto de consentimento o gtag não os reconhece e os descarta em
-    // silencio. Precisam ser `set` proprios, emitidos antes do default — sob
-    // Google Tag Gateway e a diferenca entre a primeira visita ir redigida ou nao.
-    const mockData = {
-      clientId: '390/abc',
-      enableConsentMode: true,
-      enableUrlPassthrough: true,
-      enableAdsDataRedaction: true,
-      defaultSettings: []
-    };
-
-    const definidos = {};
-    mock('gtagSet', (obj) => { for (let k in obj) { definidos[k] = obj[k]; } });
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { onSuccess(); });
-
-    runCode(mockData);
-
-    assertThat(definidos.url_passthrough).isEqualTo(true);
-    assertThat(definidos.ads_data_redaction).isEqualTo(true);
+  code: "// Dentro do objeto de consentimento o gtag não os reconhece e os descarta em\n// silencio. Precisam\
+    \ ser `set` proprios, emitidos antes do default — sob\n// Google Tag Gateway e a diferenca entre a\
+    \ primeira visita ir redigida ou nao.\nconst mockData = {\n  clientId: '390/abc',\n  enableConsentMode:\
+    \ true,\n  enableUrlPassthrough: true,\n  enableAdsDataRedaction: true,\n  defaultSettings: []\n};\n\
+    \nconst definidos = {};\nmock('gtagSet', (obj) => { for (let k in obj) { definidos[k] = obj[k]; }\
+    \ });\nmock('queryPermission', () => true);\nmock('injectScript', (url, onSuccess) => { onSuccess();\
+    \ });\n\nrunCode(mockData);\n\nassertThat(definidos.url_passthrough).isEqualTo(true);\nassertThat(definidos.ads_data_redaction).isEqualTo(true);"
 - name: Desmarcar cada controle impede o comando correspondente
-  code: |-
-    const mockData = {
-      clientId: '390/abc',
-      enableConsentMode: true,
-      enableUrlPassthrough: false,
-      enableAdsDataRedaction: true,
-      defaultSettings: []
-    };
-
-    const definidos = {};
-    mock('gtagSet', (obj) => { for (let k in obj) { definidos[k] = obj[k]; } });
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { onSuccess(); });
-
-    runCode(mockData);
-
-    assertThat(definidos.url_passthrough).isUndefined();
-    assertThat(definidos.ads_data_redaction).isEqualTo(true);
+  code: "const mockData = {\n  clientId: '390/abc',\n  enableConsentMode: true,\n  enableUrlPassthrough:\
+    \ false,\n  enableAdsDataRedaction: true,\n  defaultSettings: []\n};\n\nconst definidos = {};\nmock('gtagSet',\
+    \ (obj) => { for (let k in obj) { definidos[k] = obj[k]; } });\nmock('queryPermission', () => true);\n\
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });\n\nrunCode(mockData);\n\nassertThat(definidos.url_passthrough).isUndefined();\n\
+    assertThat(definidos.ads_data_redaction).isEqualTo(true);"
 - name: Regiao com virgula sobrando nao gera entrada vazia
-  code: |-
-    // "BR, " viraria ['BR', ''] — uma regiao vazia na lista invalida o comando
-    // inteiro para o gtag.
-    const mockData = {
-      clientId: '390/abc',
-      enableConsentMode: true,
-      defaultSettings: [{
-        region: 'BR, ',
-        ad_storage: 'denied',
-        analytics_storage: 'denied',
-        ad_user_data: 'denied',
-        ad_personalization: 'denied'
-      }]
-    };
-
-    let estado = null;
-    mock('setDefaultConsentState', (obj) => { estado = obj; });
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { onSuccess(); });
-
-    runCode(mockData);
-
-    assertThat(estado.region.length).isEqualTo(1);
-    assertThat(estado.region[0]).isEqualTo('BR');
-- name: Com o Consent Mode ligado o bundle e avisado que o default ja saiu
-  code: |-
-    // Sem esta marca o bundle republica o default quando termina de carregar,
-    // depois de as tags ja terem disparado — duas fontes de verdade para o mesmo
-    // estado. E o mesmo flag que o bootstrap inject.js usa na instalacao manual.
-    const mockData = {
-      clientId: '390/abc',
-      enableConsentMode: true,
-      defaultSettings: []
-    };
-
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { onSuccess(); });
-
-    runCode(mockData);
-
-    assertApi('setInWindow').wasCalledWith('__beCmpBootstrap', true, true);
-- name: Com o Consent Mode desligado nada e publicado nem marcado
-  code: |-
-    // Basic Mode: o cliente assume o bloqueio das tags pelos consent checks do
-    // GTM. Marcar o flag aqui silenciaria tambem o default do bundle, deixando o
-    // site sem nenhum estado publicado.
-    const mockData = {
-      clientId: '390/abc',
-      enableConsentMode: false,
-      defaultSettings: []
-    };
-
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { onSuccess(); });
-
-    runCode(mockData);
-
-    assertApi('setDefaultConsentState').wasNotCalled();
-    assertApi('setInWindow').wasNotCalled();
-    assertApi('gtagSet').wasNotCalled();
+  code: "// \"BR, \" viraria ['BR', ''] — uma regiao vazia na lista invalida o comando\n// inteiro para\
+    \ o gtag.\nconst mockData = {\n  clientId: '390/abc',\n  enableConsentMode: true,\n  defaultSettings:\
+    \ [{\n    region: 'BR, ',\n    ad_storage: 'denied',\n    analytics_storage: 'denied',\n    ad_user_data:\
+    \ 'denied',\n    ad_personalization: 'denied'\n  }]\n};\n\nlet estado = null;\nmock('setDefaultConsentState',\
+    \ (obj) => { estado = obj; });\nmock('queryPermission', () => true);\nmock('injectScript', (url, onSuccess)\
+    \ => { onSuccess(); });\n\nrunCode(mockData);\n\nassertThat(estado.region.length).isEqualTo(1);\n\
+    assertThat(estado.region[0]).isEqualTo('BR');"
 - name: A URL do bundle usa o ID como o painel entrega
-  code: |-
-    // O campo "ID para configuracao no GTM" ja vem no formato {empresa}/{banner},
-    // que e o caminho do bundle no CDN.
-    const mockData = {
-      clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',
-      enableConsentMode: true,
-      defaultSettings: []
-    };
-
-    let injetada = '';
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { injetada = url; onSuccess(); });
-
-    runCode(mockData);
-
-    assertThat(injetada).isEqualTo('https://cdn-api-cmp.becompliance.com/client-side/1234/a1b2c3d4-0000-4000-8000-000000000000.js');
+  code: "// O campo \"ID para configuracao no GTM\" ja vem no formato {empresa}/{banner},\n// que e o\
+    \ caminho do bundle no CDN.\nconst mockData = {\n  clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',\n\
+    \  enableConsentMode: true,\n  defaultSettings: []\n};\n\nlet injetada = '';\nmock('queryPermission',\
+    \ () => true);\nmock('injectScript', (url, onSuccess) => { injetada = url; onSuccess(); });\n\nrunCode(mockData);\n\
+    \nassertThat(injetada).isEqualTo('https://cdn-api-cmp.becompliance.com/client-side/1234/a1b2c3d4-0000-4000-8000-000000000000.js');"
 - name: Sem Client ID a tag falha em vez de injetar URL invalida
-  code: |-
-    const mockData = { clientId: '', enableConsentMode: true, defaultSettings: [] };
+  code: 'const mockData = { clientId: '''', enableConsentMode: true, defaultSettings: [] };
 
-    mock('queryPermission', () => true);
-    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    mock(''queryPermission'', () => true);
+
+    mock(''injectScript'', (url, onSuccess) => { onSuccess(); });
+
 
     runCode(mockData);
 
-    assertApi('gtmOnFailure').wasCalled();
-    assertApi('injectScript').wasNotCalled();
+
+    assertApi(''gtmOnFailure'').wasCalled();
+
+    assertApi(''injectScript'').wasNotCalled();'
 
 
 ___NOTES___

@@ -62,13 +62,17 @@ The Consent Initialization trigger guarantees the order **inside** the container
 
 The gap is a Google tag pasted directly into the page HTML, above the GTM snippet. The GTM snippet is `async`, so it loads in parallel with the HTML parsing — a synchronous `gtag.js` in the `<head>` runs *during* parsing, before the container exists. With no consent default queued yet, gtag assumes `granted`. No amount of reordering inside the template fixes this: nothing in the container can run before the container itself.
 
-If that is your case, add our synchronous bootstrap as the **first line** of the `<head>`, above any Google tag:
+If that is your case, install the banner script directly as the **first line** of the `<head>`, above any Google tag — the same one-line snippet the Be.Aliant dashboard gives you:
 
 ```html
-<script src="https://cdn-api-cmp.becompliance.com/client-side/inject.js"></script>
+<script src="https://cdn-api-cmp.becompliance.com/client-side/{company}/{banner}.js"></script>
 ```
 
-It is a static file, identical for every domain, and it publishes the denied default on the page's first byte. It works alongside this template — the bootstrap covers tags that fire before GTM boots, while `setDefaultConsentState` feeds GTM's internal consent model, which is what makes the container's consent checks work.
+Do not add `async`, `defer` or `type="module"`: all three delay execution until after parsing, which is exactly what reopens the gap. Loaded this way the script blocks the parser and publishes the consent state on the page's first byte, then builds the banner UI once the DOM is ready.
+
+It works alongside this template — the script covers tags that fire before GTM boots, while `setDefaultConsentState` feeds GTM's internal consent model, which is what makes the container's consent checks work.
+
+**Worth knowing:** a consent state that arrives *after* a Google tag has already run does not undo what it did — measured with the real `gtag.js`. So whichever command reaches the page first is the one that governs those tags: this tag's Regional Settings for the container, and the dashboard configuration for the script in the `<head>`.
 
 The alternative, if you prefer not to touch the HTML, is to move those tags into the GTM container.
 
