@@ -2,5 +2,12 @@ homepage: "https://cookies.becompliance.com"
 documentation: "https://cookies.becompliance.com/installation.html"
 versions:
   # Latest version
+  - sha: f9f661051f0dcdaf0c6c25729d78580705967946
+    changeNotes: >-
+      Emits url_passthrough and ads_data_redaction as separate set commands,
+      before the default — inside the consent object gtag discards them silently.
+      Signals the banner that the default state has already been published, so it
+      is no longer emitted twice. Regions with a trailing comma no longer produce
+      an empty entry.;
   - sha: 5b30806fc435216a144ec80dc800712882a60c93
     changeNotes: Initial release;
