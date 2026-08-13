@@ -10,6 +10,8 @@ This template provides a seamless, codeless integration between the Be.Aliant Co
 * **Privacy by Default:** Sets `ad_storage`, `analytics_storage`, `ad_user_data`, and `ad_personalization` to `denied` initially.
 * **Secure Injection:** Safely injects the Be.Aliant CMP script using GTM's sandboxed JavaScript APIs.
 * **Native Integration:** Fully compatible with GTM's "Consent Initialization" trigger to prevent data leakage.
+* **Transmission Controls:** emits `url_passthrough` and `ads_data_redaction` as proper `set` commands, before the default — the only form gtag actually honours.
+* **Single Source of Truth:** signals the banner that the default state has already been published, so it is not emitted twice.
 * **Debug Support:** Outputs clear initialization logs to the GTM Preview console for easy troubleshooting.
 
 # Implementation Guide: Google Consent Mode v2 with Be.Aliant (via GTM)
@@ -26,7 +28,7 @@ To ensure a secure integration with no data leakage, use our official template:
 ## 2. Creating and Configuring the Tag
 1. Go to the **Tags** menu and click **New**.
 2. Click **Tag Configuration** and select the **Be.Aliant** custom template you just added.
-3. Fill in the **BeCompliance Banner ID (Client ID)** field with your unique alphanumeric code (available in your Be.Aliant dashboard).
+3. Fill in the **BeCompliance Banner ID (Client ID)** field. In your Be.Aliant dashboard, open the banner and use the **Copy** button on the **"ID para configuração no GTM"** field — the value already comes in the `{id}/{id}` format required here (e.g. `1234/a1b2c3d4-0000-4000-8000-000000000000`). Pasting only the banner UUID produces an incomplete URL and the banner will not load.
 
 ## 3. Choosing the Operation Mode (Basic vs. Advanced Mode)
 Google Consent Mode v2 can operate in two distinct modes. Our template allows you to choose the best approach for your business through the **"Enable Google Consent Mode v2 (Recommended)"** checkbox.
@@ -54,12 +56,41 @@ To prevent data leakage, the Be.Aliant tag must be the very first to execute on 
 2. Click to add a trigger and select **EXACTLY** this option: **Consent Initialization - All Pages**.
 3. Save your Tag and publish the GTM container.
 
-## 6. Verification and Support
+## 6. Google tags outside the container
+
+The Consent Initialization trigger guarantees the order **inside** the container: no tag in it fires before this template publishes the consent state. If all your Google tags live in GTM, you are covered and nothing else is needed.
+
+The gap is a Google tag pasted directly into the page HTML, above the GTM snippet. The GTM snippet is `async`, so it loads in parallel with the HTML parsing — a synchronous `gtag.js` in the `<head>` runs *during* parsing, before the container exists. With no consent default queued yet, gtag assumes `granted`. No amount of reordering inside the template fixes this: nothing in the container can run before the container itself.
+
+If that is your case, add our synchronous bootstrap as the **first line** of the `<head>`, above any Google tag:
+
+```html
+<script src="https://cdn-api-cmp.becompliance.com/client-side/inject.js"></script>
+```
+
+It is a static file, identical for every domain, and it publishes the denied default on the page's first byte. It works alongside this template — the bootstrap covers tags that fire before GTM boots, while `setDefaultConsentState` feeds GTM's internal consent model, which is what makes the container's consent checks work.
+
+The alternative, if you prefer not to touch the HTML, is to move those tags into the GTM container.
+
+## 7. Where the default consent state can come from
+
+Three places can define it, and mixing them without intent leads to surprises:
+
+* **This tag's Regional Settings table** — applies to everything the container fires.
+* **Global Consent Defaults**, configured on Google's side — relevant if you use Google tag gateway.
+* **The banner's regional configuration** in the Be.Aliant dashboard.
+
+Per Google's rule, a command carrying a `region` beats a global one. If you set Global Consent Defaults or Data Transmission Controls, also review the banner's regional configuration in the platform, so the state sent to Google stays coherent — in regions where you choose not to display the banner, the CMP grants consent automatically.
+
+## 8. Verification and Support
 After publishing, use GTM's **Preview** mode. The Be.Aliant template will output logs in the console (browser Console tab or within the Tag Assistant panel itself) confirming the script loading and the injection of consent states.
 
 ## ⚙️ Configuration Fields
 
-* **Client ID (Required):** Your unique alphanumeric identifier. Example: `ae3e2166-c2c3-4726-848a-1d28fb5ab1a7`.
+* **Client ID (Required):** the value from the **"ID para configuração no GTM"** field in your Be.Aliant dashboard, already in the `{id}/{id}` format. Example: `1234/a1b2c3d4-0000-4000-8000-000000000000`.
+* **Enable Google Consent Mode v2 (default: on):** publishes the default consent state and tells the banner it does not need to publish it again.
+* **Enable url_passthrough (default: on):** preserves campaign identifiers (`gclid`, `dclid`) in the URL while the user has not consented to cookies.
+* **Enable ads_data_redaction (default: on):** redacts data sent to ad tags while `ad_storage` is denied. Both are separate `set` commands — inside the consent object gtag silently discards them.
 
 ## 📚 Documentation & Support
 

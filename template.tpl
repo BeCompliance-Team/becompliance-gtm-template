@@ -39,6 +39,7 @@ ___TEMPLATE_PARAMETERS___
     "name": "clientId",
     "displayName": "ID do Banner na BeCompliance",
     "simpleValueType": true,
+    "help": "Use o botão \"Copiar\" do campo \"ID para configuração no GTM\" no painel Be.Aliant. O valor já vem no formato {empresa}/{banner} — ex.: 1234/a1b2c3d4-0000-4000-8000-000000000000.",
     "valueValidators": [
       {
         "type": "NON_EMPTY"
@@ -52,6 +53,36 @@ ___TEMPLATE_PARAMETERS___
     "simpleValueType": true,
     "defaultValue": true,
     "help": "Se desmarcado, as tags não receberão estados padrão (Basic Mode)."
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "enableUrlPassthrough",
+    "checkboxText": "Ativar url_passthrough",
+    "simpleValueType": true,
+    "defaultValue": true,
+    "help": "Preserva os identificadores de campanha (gclid, dclid) na URL quando o usuário ainda não consentiu com cookies. Equivalente ao ajuste GCM_URL_PASSTHROUGH do painel.",
+    "enablingConditions": [
+      {
+        "paramName": "enableConsentMode",
+        "paramValue": true,
+        "type": "EQUALS"
+      }
+    ]
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "enableAdsDataRedaction",
+    "checkboxText": "Ativar ads_data_redaction",
+    "simpleValueType": true,
+    "defaultValue": true,
+    "help": "Redige os dados enviados às tags de anúncio enquanto ad_storage estiver negado. Equivalente ao ajuste GCM_ADS_DATA_REDACTION do painel.",
+    "enablingConditions": [
+      {
+        "paramName": "enableConsentMode",
+        "paramValue": true,
+        "type": "EQUALS"
+      }
+    ]
   },
   {
     "type": "PARAM_TABLE",
@@ -166,6 +197,8 @@ const setDefaultConsentState = require('setDefaultConsentState');
 const injectScript = require('injectScript');
 const queryPermission = require('queryPermission');
 const logToConsole = require('logToConsole');
+const gtagSet = require('gtagSet');
+const setInWindow = require('setInWindow');
 
 const clientId = data.clientId;
 
@@ -176,6 +209,16 @@ if (!clientId) {
 }
 
 if (data.enableConsentMode !== false) {
+  // url_passthrough e ads_data_redaction são comandos `set` independentes: dentro
+  // do objeto de consentimento o gtag não os reconhece e os descarta em silêncio.
+  // Precisam vir antes do default para valer já na primeira tag.
+  if (data.enableUrlPassthrough !== false) {
+    gtagSet({ 'url_passthrough': true });
+  }
+  if (data.enableAdsDataRedaction !== false) {
+    gtagSet({ 'ads_data_redaction': true });
+  }
+
   const defaultSettings = data.defaultSettings;
 
   if (defaultSettings && defaultSettings.length > 0) {
@@ -192,7 +235,9 @@ if (data.enableConsentMode !== false) {
       };
 
       if (row.region && row.region.trim() !== '') {
-        const regions = row.region.split(',').map(r => r.trim());
+        // O filter evita que "BR, " vire ['BR', ''] — uma região vazia na lista
+        // invalida o comando inteiro para o gtag.
+        const regions = row.region.split(',').map(r => r.trim()).filter(r => r !== '');
         if (regions.length > 0) {
           consentObj.region = regions;
         }
@@ -213,9 +258,22 @@ if (data.enableConsentMode !== false) {
       'wait_for_update': 500
     });
   }
+
+  // O bundle do banner emite o próprio `consent default` quando ninguém o
+  // publicou antes dele. Aqui o GTM já publicou — e bem mais cedo, na Consent
+  // Initialization. Sem esta marca o bundle repete o comando quando termina de
+  // carregar, depois de as tags já terem disparado, criando duas fontes de
+  // verdade para o mesmo estado. O flag é o mesmo que o bootstrap `inject.js`
+  // usa na instalação manual.
+  //
+  // Só marcamos quando o Consent Mode está ligado: com o checkbox desmarcado
+  // nenhum default sai daqui, e o bundle precisa continuar emitindo o dele.
+  setInWindow('__beCmpBootstrap', true, true);
 }
 
-const cmpUrl = 'https://cdn-api-cmp.becompliance.com/client-side/' + clientId + '.js';
+// O painel entrega o ID já no formato {empresa}/{banner}, que é o caminho do
+// bundle no CDN. O trim protege contra espaço colado junto do valor.
+const cmpUrl = 'https://cdn-api-cmp.becompliance.com/client-side/' + clientId.trim() + '.js';
 
 if (queryPermission('inject_script', cmpUrl)) {
   injectScript(cmpUrl, () => {
@@ -267,6 +325,97 @@ ___WEB_PERMISSIONS___
               {
                 "type": 1,
                 "string": "https://cdn-api-cmp.becompliance.com/*"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "write_data_layer",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "keyPatterns",
+          "value": {
+            "type": 2,
+            "listItem": [
+              {
+                "type": 1,
+                "string": "url_passthrough"
+              },
+              {
+                "type": 1,
+                "string": "ads_data_redaction"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "access_globals",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "keys",
+          "value": {
+            "type": 2,
+            "listItem": [
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "__beCmpBootstrap"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
               }
             ]
           }
@@ -522,7 +671,157 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Tabela vazia publica o bloqueio global
+  code: |-
+    const mockData = {
+      clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',
+      enableConsentMode: true,
+      defaultSettings: []
+    };
+
+    let estado = null;
+    mock('setDefaultConsentState', (obj) => { estado = obj; });
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertThat(estado.ad_storage).isEqualTo('denied');
+    assertThat(estado.analytics_storage).isEqualTo('denied');
+    assertThat(estado.ad_user_data).isEqualTo('denied');
+    assertThat(estado.ad_personalization).isEqualTo('denied');
+    assertThat(estado.security_storage).isEqualTo('granted');
+- name: url_passthrough e ads_data_redaction saem como comandos set
+  code: |-
+    // Dentro do objeto de consentimento o gtag não os reconhece e os descarta em
+    // silencio. Precisam ser `set` proprios, emitidos antes do default — sob
+    // Google Tag Gateway e a diferenca entre a primeira visita ir redigida ou nao.
+    const mockData = {
+      clientId: '390/abc',
+      enableConsentMode: true,
+      enableUrlPassthrough: true,
+      enableAdsDataRedaction: true,
+      defaultSettings: []
+    };
+
+    const definidos = {};
+    mock('gtagSet', (obj) => { for (let k in obj) { definidos[k] = obj[k]; } });
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertThat(definidos.url_passthrough).isEqualTo(true);
+    assertThat(definidos.ads_data_redaction).isEqualTo(true);
+- name: Desmarcar cada controle impede o comando correspondente
+  code: |-
+    const mockData = {
+      clientId: '390/abc',
+      enableConsentMode: true,
+      enableUrlPassthrough: false,
+      enableAdsDataRedaction: true,
+      defaultSettings: []
+    };
+
+    const definidos = {};
+    mock('gtagSet', (obj) => { for (let k in obj) { definidos[k] = obj[k]; } });
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertThat(definidos.url_passthrough).isUndefined();
+    assertThat(definidos.ads_data_redaction).isEqualTo(true);
+- name: Regiao com virgula sobrando nao gera entrada vazia
+  code: |-
+    // "BR, " viraria ['BR', ''] — uma regiao vazia na lista invalida o comando
+    // inteiro para o gtag.
+    const mockData = {
+      clientId: '390/abc',
+      enableConsentMode: true,
+      defaultSettings: [{
+        region: 'BR, ',
+        ad_storage: 'denied',
+        analytics_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied'
+      }]
+    };
+
+    let estado = null;
+    mock('setDefaultConsentState', (obj) => { estado = obj; });
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertThat(estado.region.length).isEqualTo(1);
+    assertThat(estado.region[0]).isEqualTo('BR');
+- name: Com o Consent Mode ligado o bundle e avisado que o default ja saiu
+  code: |-
+    // Sem esta marca o bundle republica o default quando termina de carregar,
+    // depois de as tags ja terem disparado — duas fontes de verdade para o mesmo
+    // estado. E o mesmo flag que o bootstrap inject.js usa na instalacao manual.
+    const mockData = {
+      clientId: '390/abc',
+      enableConsentMode: true,
+      defaultSettings: []
+    };
+
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertApi('setInWindow').wasCalledWith('__beCmpBootstrap', true, true);
+- name: Com o Consent Mode desligado nada e publicado nem marcado
+  code: |-
+    // Basic Mode: o cliente assume o bloqueio das tags pelos consent checks do
+    // GTM. Marcar o flag aqui silenciaria tambem o default do bundle, deixando o
+    // site sem nenhum estado publicado.
+    const mockData = {
+      clientId: '390/abc',
+      enableConsentMode: false,
+      defaultSettings: []
+    };
+
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertApi('setDefaultConsentState').wasNotCalled();
+    assertApi('setInWindow').wasNotCalled();
+    assertApi('gtagSet').wasNotCalled();
+- name: A URL do bundle usa o ID como o painel entrega
+  code: |-
+    // O campo "ID para configuracao no GTM" ja vem no formato {empresa}/{banner},
+    // que e o caminho do bundle no CDN.
+    const mockData = {
+      clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',
+      enableConsentMode: true,
+      defaultSettings: []
+    };
+
+    let injetada = '';
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { injetada = url; onSuccess(); });
+
+    runCode(mockData);
+
+    assertThat(injetada).isEqualTo('https://cdn-api-cmp.becompliance.com/client-side/1234/a1b2c3d4-0000-4000-8000-000000000000.js');
+- name: Sem Client ID a tag falha em vez de injetar URL invalida
+  code: |-
+    const mockData = { clientId: '', enableConsentMode: true, defaultSettings: [] };
+
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertApi('gtmOnFailure').wasCalled();
+    assertApi('injectScript').wasNotCalled();
 
 
 ___NOTES___
