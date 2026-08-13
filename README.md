@@ -11,7 +11,7 @@ This template provides a seamless, codeless integration between the Be.Aliant Co
 * **Secure Injection:** Safely injects the Be.Aliant CMP script using GTM's sandboxed JavaScript APIs.
 * **Native Integration:** Fully compatible with GTM's "Consent Initialization" trigger to prevent data leakage.
 * **Transmission Controls:** emits `url_passthrough` and `ads_data_redaction` as proper `set` commands, before the default — the only form gtag actually honours.
-* **Single Source of Truth:** signals the banner that the default state has already been published, so it is not emitted twice.
+* **Container-scoped configuration:** the Regional Settings you define here govern the tags this container fires — no need to touch the site's HTML to change them.
 * **Debug Support:** Outputs clear initialization logs to the GTM Preview console for easy troubleshooting.
 
 # Implementation Guide: Google Consent Mode v2 with Be.Aliant (via GTM)
