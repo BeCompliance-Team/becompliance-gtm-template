@@ -39,7 +39,7 @@ ___TEMPLATE_PARAMETERS___
     "name": "clientId",
     "displayName": "ID do Banner na BeCompliance",
     "simpleValueType": true,
-    "help": "Use o botão \"Copiar\" do campo \"ID para configuração no GTM\" no painel Be.Aliant. O valor já vem no formato {empresa}/{banner} — ex.: 390/7cd8b688-58b1-4399-9410-705abd7b2025.",
+    "help": "Use o botão \"Copiar\" do campo \"ID para configuração no GTM\" no painel Be.Aliant. O valor já vem no formato {empresa}/{banner} — ex.: 1234/a1b2c3d4-0000-4000-8000-000000000000.",
     "valueValidators": [
       {
         "type": "NON_EMPTY"
@@ -675,7 +675,7 @@ scenarios:
 - name: Tabela vazia publica o bloqueio global
   code: |-
     const mockData = {
-      clientId: '390/7cd8b688-58b1-4399-9410-705abd7b2025',
+      clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',
       enableConsentMode: true,
       defaultSettings: []
     };
@@ -799,7 +799,7 @@ scenarios:
     // O campo "ID para configuracao no GTM" ja vem no formato {empresa}/{banner},
     // que e o caminho do bundle no CDN.
     const mockData = {
-      clientId: '390/7cd8b688-58b1-4399-9410-705abd7b2025',
+      clientId: '1234/a1b2c3d4-0000-4000-8000-000000000000',
       enableConsentMode: true,
       defaultSettings: []
     };
@@ -810,7 +810,7 @@ scenarios:
 
     runCode(mockData);
 
-    assertThat(injetada).isEqualTo('https://cdn-api-cmp.becompliance.com/client-side/390/7cd8b688-58b1-4399-9410-705abd7b2025.js');
+    assertThat(injetada).isEqualTo('https://cdn-api-cmp.becompliance.com/client-side/1234/a1b2c3d4-0000-4000-8000-000000000000.js');
 - name: Sem Client ID a tag falha em vez de injetar URL invalida
   code: |-
     const mockData = { clientId: '', enableConsentMode: true, defaultSettings: [] };
