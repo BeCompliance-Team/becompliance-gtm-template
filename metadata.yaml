@@ -2,7 +2,7 @@ homepage: "https://cookies.becompliance.com"
 documentation: "https://cookies.becompliance.com/installation.html"
 versions:
   # Latest version
-  - sha: f9f661051f0dcdaf0c6c25729d78580705967946
+  - sha: 2ea836aced40332b0910c7c8431ffd061e7f6e77
     changeNotes: >-
       Emits url_passthrough and ads_data_redaction as separate set commands,
       before the default — inside the consent object gtag discards them silently.
