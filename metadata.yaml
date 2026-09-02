@@ -2,6 +2,11 @@ homepage: "https://cookies.becompliance.com"
 documentation: "https://cookies.becompliance.com/installation.html"
 versions:
   # Latest version
+  - sha: 4a03471bf2b160b4aaf577e66ca730a838bfebe3
+    changeNotes: >-
+      Encodes each segment of the client id with encodeUriComponent when building
+      the script URL, and rejects values outside the {company}/{banner} format.
+      Declares the Be developer id to Google through gtagSet.;
   - sha: 2ea836aced40332b0910c7c8431ffd061e7f6e77
     changeNotes: >-
       Emits url_passthrough and ads_data_redaction as separate set commands,
