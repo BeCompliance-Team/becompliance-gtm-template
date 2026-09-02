@@ -199,6 +199,10 @@ const queryPermission = require('queryPermission');
 const logToConsole = require('logToConsole');
 const gtagSet = require('gtagSet');
 const setInWindow = require('setInWindow');
+const encodeUriComponent = require('encodeUriComponent');
+
+
+const DEVELOPER_ID = 'dZjFmMW';
 
 const clientId = data.clientId;
 
@@ -208,16 +212,33 @@ if (!clientId) {
   return;
 }
 
+
+const montarUrlDoBundle = (valor) => {
+  const urlBase = 'https://cdn-api-cmp.becompliance.com/client-side/';
+  const partes = valor.trim().split('/');
+
+  if (partes.length !== 2) return undefined;
+
+  const seguros = [];
+  for (let i = 0; i < partes.length; i++) {
+    const parte = partes[i];
+    if (!parte || parte.indexOf('..') !== -1) return undefined;
+    seguros.push(encodeUriComponent(parte));
+  }
+
+  return urlBase + seguros.join('/') + '.js';
+};
+
 if (data.enableConsentMode !== false) {
-  // url_passthrough e ads_data_redaction são comandos `set` independentes: dentro
-  // do objeto de consentimento o gtag não os reconhece e os descarta em silêncio.
-  // Precisam vir antes do default para valer já na primeira tag.
+
   if (data.enableUrlPassthrough !== false) {
     gtagSet({ 'url_passthrough': true });
   }
   if (data.enableAdsDataRedaction !== false) {
     gtagSet({ 'ads_data_redaction': true });
   }
+
+  gtagSet('developer_id.' + DEVELOPER_ID, true);
 
   const defaultSettings = data.defaultSettings;
 
@@ -235,8 +256,7 @@ if (data.enableConsentMode !== false) {
       };
 
       if (row.region && row.region.trim() !== '') {
-        // O filter evita que "BR, " vire ['BR', ''] — uma região vazia na lista
-        // invalida o comando inteiro para o gtag.
+
         const regions = row.region.split(',').map(r => r.trim()).filter(r => r !== '');
         if (regions.length > 0) {
           consentObj.region = regions;
@@ -246,7 +266,6 @@ if (data.enableConsentMode !== false) {
       setDefaultConsentState(consentObj);
     });
   } else {
-    // Fallback de segurança caso a tabela esteja vazia
     setDefaultConsentState({
       'ad_storage': 'denied',
       'analytics_storage': 'denied',
@@ -259,21 +278,18 @@ if (data.enableConsentMode !== false) {
     });
   }
 
-  // O bundle do banner emite o próprio `consent default` quando ninguém o
-  // publicou antes dele. Aqui o GTM já publicou — e bem mais cedo, na Consent
-  // Initialization. Sem esta marca o bundle repete o comando quando termina de
-  // carregar, depois de as tags já terem disparado, criando duas fontes de
-  // verdade para o mesmo estado. O flag é o mesmo que o bootstrap `inject.js`
-  // usa na instalação manual.
-  //
-  // Só marcamos quando o Consent Mode está ligado: com o checkbox desmarcado
-  // nenhum default sai daqui, e o bundle precisa continuar emitindo o dele.
+
   setInWindow('__beCmpBootstrap', true, true);
 }
 
-// O painel entrega o ID já no formato {empresa}/{banner}, que é o caminho do
-// bundle no CDN. O trim protege contra espaço colado junto do valor.
-const cmpUrl = 'https://cdn-api-cmp.becompliance.com/client-side/' + clientId.trim() + '.js';
+
+const cmpUrl = montarUrlDoBundle(clientId);
+
+if (!cmpUrl) {
+  logToConsole('Be.Aliant CMP: Erro - Client ID fora do formato {empresa}/{banner}.');
+  data.gtmOnFailure();
+  return;
+}
 
 if (queryPermission('inject_script', cmpUrl)) {
   injectScript(cmpUrl, () => {
@@ -355,6 +371,10 @@ ___WEB_PERMISSIONS___
               {
                 "type": 1,
                 "string": "ads_data_redaction"
+              },
+              {
+                "type": 1,
+                "string": "developer_id.dZjFmMW"
               }
             ]
           }
@@ -822,6 +842,70 @@ scenarios:
 
     assertApi('gtmOnFailure').wasCalled();
     assertApi('injectScript').wasNotCalled();
+- name: Caractere especial no ID e codificado sem quebrar a barra
+  code: |-
+    // A barra entre empresa e banner e estrutural: codificar o valor inteiro a
+    // transformaria em %2F e nenhuma instalacao carregaria. Por isso a
+    // codificacao e por segmento.
+    const mockData = {
+      clientId: '12 34/banner ção',
+      enableConsentMode: true,
+      defaultSettings: []
+    };
+
+    let injetada = '';
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { injetada = url; onSuccess(); });
+
+    runCode(mockData);
+
+    assertThat(injetada).isEqualTo('https://cdn-api-cmp.becompliance.com/client-side/12%2034/banner%20%C3%A7%C3%A3o.js');
+- name: ID com travessia de caminho e recusado
+  code: |-
+    // encodeUriComponent nao altera '..', entao so a validacao de formato barra
+    // uma tentativa de subir na arvore de diretorios do CDN.
+    const mockData = {
+      clientId: '../../etc/passwd',
+      enableConsentMode: true,
+      defaultSettings: []
+    };
+
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertApi('injectScript').wasNotCalled();
+    assertApi('gtmOnFailure').wasCalled();
+- name: ID fora do formato empresa/banner e recusado
+  code: |-
+    // Um segmento so, ou tres, nao correspondem ao caminho do bundle no CDN.
+    const mockData = { clientId: 'somente-um-segmento', enableConsentMode: true, defaultSettings: [] };
+
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertApi('injectScript').wasNotCalled();
+    assertApi('gtmOnFailure').wasCalled();
+- name: O developer id da Be e declarado ao Google
+  code: |-
+    // Exigencia do CMP Partner Program: a CMP tem de se identificar. Sai do
+    // template porque e ele que o Google audita, e porque a tag roda na Consent
+    // Initialization, antes de o bundle carregar.
+    const mockData = {
+      clientId: '390/abc',
+      enableConsentMode: true,
+      defaultSettings: []
+    };
+
+    mock('queryPermission', () => true);
+    mock('injectScript', (url, onSuccess) => { onSuccess(); });
+
+    runCode(mockData);
+
+    assertApi('gtagSet').wasCalledWith('developer_id.dZjFmMW', true);
 
 
 ___NOTES___

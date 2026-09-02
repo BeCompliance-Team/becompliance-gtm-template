@@ -87,7 +87,7 @@ After publishing, use GTM's **Preview** mode. The Be.Aliant template will output
 
 ## ⚙️ Configuration Fields
 
-* **Client ID (Required):** the value from the **"ID para configuração no GTM"** field in your Be.Aliant dashboard, already in the `{id}/{id}` format. Example: `1234/a1b2c3d4-0000-4000-8000-000000000000`.
+* **Client ID (Required):** the value from the **"ID para configuração no GTM"** field in your Be.Aliant dashboard, already in the `{id}/{id}` format. Example: `1234/a1b2c3d4-0000-4000-8000-000000000000`. The value is URL-encoded per segment before the library URL is built, and a value outside the `{company}/{banner}` format is rejected — the tag fails instead of requesting an invalid URL.
 * **Enable Google Consent Mode v2 (default: on):** publishes the default consent state and tells the banner it does not need to publish it again.
 * **Enable url_passthrough (default: on):** preserves campaign identifiers (`gclid`, `dclid`) in the URL while the user has not consented to cookies.
 * **Enable ads_data_redaction (default: on):** redacts data sent to ad tags while `ad_storage` is denied. Both are separate `set` commands — inside the consent object gtag silently discards them.
